@@ -2,22 +2,42 @@ import MySQLdb
 import sys
 import hashlib
 import uuid
+from flask_sqlalchemy import SQLAlchemy
+from itsdangerous import (TimedJSONWebSignatureSerializer
+                          as Serializer, BadSignature, SignatureExpired)
+from Classes.User import User
 
 
-def createTables():
-	db, cursor = connect()
-	createQuery = """CREATE TABLE IF NOT EXISTS profiles(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-	firstname VARCHAR(20), 
-	lastname VARCHAR(20), 
-	password VARCHAR(380), 
-	primary_provider VARCHAR(20), 
-	email VARCHAR(80) UNIQUE,
-	username VARCHAR(40) UNIQUE,
-	salt VARCHAR(380),
-	photo_url VARCHAR(2083));"""
 
-	cursor.execute(createQuery)
-	db.commit()
+# def createTables():
+# 	profiles = Table('profiles', metadata, autoload=True)
+# 	if not profiles.exists():
+# 		profiles = Table('profiles', metadata,
+#                   Column('id', Integer, primary_key=True,
+#                          nullable=False, autoincrement=True),
+#                   Column('firstname', VARCHAR(20)),
+#                   Column('lastname', VARCHAR(20)),
+#                   Column('password', VARCHAR(380)),
+#                   Column('primary_provider', VARCHAR(20)),
+#                   Column('email', VARCHAR(80), unique=True),
+#                   Column('username', VARCHAR(40)),
+#                   Column('salt', VARCHAR(380)),
+#                   Column('photo_url', VARCHAR(2083))
+#                   )
+# 		profiles.create()
+# db, cursor = connect()
+# createQuery = """CREATE TABLE IF NOT EXISTS profiles(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+# firstname VARCHAR(20),
+# lastname VARCHAR(20),
+# password VARCHAR(380),
+# primary_provider VARCHAR(20),
+# email VARCHAR(80) UNIQUE,
+# username VARCHAR(40) UNIQUE,
+# salt VARCHAR(380),
+# photo_url VARCHAR(2083));"""
+
+# cursor.execute(createQuery)
+# db.commit()
 
 
 def connect():
@@ -29,33 +49,30 @@ def connect():
 	return db, cur
 
 
-def addUser(data):
-
-	db, cur = connect()
+def addUser(db, data):
 	if data.get('primary_provider') == 'form':
-		return addFormUser(data)
+		return addFormUser(db ,data)
 
 
-def addFormUser(data):
-	firstname = data.get('firstname')
-	lastname = data.get('lastname')
-	password = data.get('password')
-	primary_provider = data.get('primary_provider')
-	email = data.get('email')
-	username = data.get('username')
-	#producing the unique salt for the user
-	salt = uuid.uuid4().hex
-	#producing the hashed password
-	hashed_password = hashlib.sha512(password + salt).hexdigest()
-
-	q = "INSERT INTO profiles(firstname , lastname, password, primary_provider,email,username,salt) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s');" % (
-		firstname, lastname, hashed_password, primary_provider, email, username, salt)
-
-	db, cursor = connect()
-	cursor.execute(q)
-	db.commit()
-	data = cursor.fetchone()
-	db.close()
+def addFormUser(db, data):
+	_firstname = data.get('firstname')
+	_lastname = data.get('lastname')
+	_password = data.get('password')
+	_primary_provider = data.get('primary_provider')
+	_email = data.get('email')
+	_username = data.get('username')
+	#initialize user model
+	user = User(_firstname,
+             _lastname,
+             _email,
+             _primary_provider,
+             _username,
+             '')
+	#save hashed user password
+	user.password_hash(_password)
+	#insert user to database
+	db.session.add(user)
+	data = db.session.commit()
 
 	if not data:
 		return True
@@ -70,7 +87,8 @@ def signInUser(username, password):
 	salt = cursor.fetchone()
 	if salt:
 		salt = ''.join(salt)
-		hashedPass = hashlib.sha512(password + salt).hexdigest()
+		hashedPass = hashlib.sha512(
+			"You;ll never find it:)" + password + salt).hexdigest()
 		query2 = '''SELECT firstname,lastname,email FROM profiles WHERE username='%s' AND password='%s';''' % (
 			username, hashedPass)
 		cursor.execute(query2)
@@ -82,23 +100,18 @@ def signInUser(username, password):
 		return False
 
 
-def isUserRegistered(data):
-	username = data.get('username')
-	email = data.get('email')
+def isUserRegistered(db,data):
+	_username = data.get('username')
+	_email = data.get('email')
+	#check username availability
+	results = User.query.filter_by(username=_username).first()
+	print(results , sys.stderr)
 
-	db, cursor = connect()
-	#Check if username exists
-	queryUsername = """SELECT * FROM profiles WHERE username='%s';""" % (username)
-	cursor.execute(queryUsername)
-	result1 = cursor.fetchone()
-	if result1:
+	if results:
 		return 'Username already exists'
-
-	#Check if email exists
-	queryEmail = """SELECT * FROM profiles WHERE email='%s';""" % (email)
-	cursor.execute(queryEmail)
-	result2 = cursor.fetchone()
-	if result2:
+	
+	#check email availability
+	results = User.query.filter_by(email = _email).first()
+	if results:
 		return 'Email already exists'
-	db.close()
 	return False
