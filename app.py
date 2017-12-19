@@ -14,7 +14,10 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqldb://root:Zangetsou1992@loca
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
+with app.app_context():
 
+    db.create_all()
+    
 @app.route("/app/user", methods=["POST", "GET"])
 def index():
     ###SIGN UP
