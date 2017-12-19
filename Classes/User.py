@@ -32,5 +32,10 @@ class User(db.Model):
     def password_hash(self, password):
         self.salt = uuid.uuid4().hex
         self.password = hashlib.sha512("You;ll never find it:)" + password + self.salt).hexdigest()
+    
+    def verify_pass(self, _password):
+        password = hashlib.sha512("You;ll never find it:)"+ _password+ self.salt).hexdigest()
+        if self.password == password:
+            return self.email
 
 

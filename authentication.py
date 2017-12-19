@@ -80,21 +80,12 @@ def addFormUser(db, data):
 		return data
 
 
-def signInUser(username, password):
-	db, cursor = connect()
-	query = '''SELECT salt FROM profiles WHERE username='%s';''' % (username)
-	cursor.execute(query)
-	salt = cursor.fetchone()
-	if salt:
-		salt = ''.join(salt)
-		hashedPass = hashlib.sha512(
-			"You;ll never find it:)" + password + salt).hexdigest()
-		query2 = '''SELECT firstname,lastname,email FROM profiles WHERE username='%s' AND password='%s';''' % (
-			username, hashedPass)
-		cursor.execute(query2)
-		result = cursor.fetchone()
-		db.commit()
-		user = {'firstname': result[0], 'lastname': result[1], 'email': result[2]}
+def signInUser(_username, _password):
+	#Getting the user object IF there is any with that username
+	user = User.query.filter_by(username = _username).first()
+	if user:
+		email = user.verify_pass(_password)
+		user = {'email': email}
 		return user
 	else:
 		return False
@@ -109,7 +100,7 @@ def isUserRegistered(db,data):
 
 	if results:
 		return 'Username already exists'
-	
+
 	#check email availability
 	results = User.query.filter_by(email = _email).first()
 	if results:
