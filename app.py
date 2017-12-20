@@ -1,6 +1,7 @@
 #!flask/bin/python
 from flask import Flask, request, abort
 from flask_sqlalchemy import SQLAlchemy
+import authFB
 from Classes.User import db
 import authentication
 import sys
@@ -41,6 +42,13 @@ def index():
         else:
             abort(400)
 
+@app.route("/fbdata", methods=["POST", "GET"])
+def get_user_data():
+    if request.method== "GET":
+        userToken = request.args.get('token')
+        resp = authFB.getUserInfo(userToken,db)
+        return json.dumps(resp)
+        
 
 if __name__ == "__main__":
     app.run(debug=True)
