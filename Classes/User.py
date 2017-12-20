@@ -5,6 +5,7 @@ import hashlib
 import uuid
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
+import sys
 db = SQLAlchemy()
 
 
@@ -20,7 +21,7 @@ class User(db.Model):
     salt = db.Column(db.String(380))
     password = db.Column(db.String(380))
     photo_url = db.Column(db.String(2083))
-    connections = db.relationship('Connections', backref='profiles', lazy = True)
+    connections = db.relationship('Connections', backref='profiles', lazy=True)
 
     def __init__(self, firstname, lastname, email, primary_provider, username, photo_url):
         self.firstname = firstname
@@ -61,11 +62,37 @@ class User(db.Model):
         return user
 
     def user_info_construction(self):
-        json = {'firstname': self.firstname,
-                'lastname': self.lastname,
-                'email': self.email,
-                'photo_url': self.photo_url,
-                'token': self.generate_token()}
+        connections = Connections.query.filter_by(user_id = self.id).all()
+        connections_list = []
+        if isinstance(connections, list):
+            for connection in connections:
+                data = {
+                    'firstname': connection.firstname,
+                    'lastname': connection.lastname,
+                    'provider': connection.provider,
+                    'email': connection.email,
+                    'provider_id': connection.provider_id,
+                }
+                connections_list.append(data)
+        else:
+            data = {
+                'firstname': connections.firstname,
+                'lastname': connections.lastname,
+                'provider': connections.provider,
+                'email': connections.email,
+                'provider_id': connections.provider_id,
+            }
+            connections_list.append(data)
+
+        json = {
+            'firstname': self.firstname,
+            'lastname': self.lastname,
+            'email': self.email,
+            'photo_url': self.photo_url,
+            'token': self.generate_token(),
+            'id': self.id,
+            'connections': connections_list
+        }
         return json
 
 
@@ -74,9 +101,19 @@ class Connections(db.Model):
     id = db.Column(db.Integer, primary_key=True,
                    nullable=False, autoincrement=True)
     provider = db.Column(db.String(20))
-    user_id = db.Column(db.Integer, db.ForeignKey('profiles.id'), nullable = False)
+    user_id = db.Column(db.Integer, db.ForeignKey(
+        'profiles.id'), nullable=False)
     email = db.Column(db.String(80), unique=True)
     firstname = db.Column(db.String(20))
     lastname = db.Column(db.String(20))
     photo_url = db.Column(db.String(2083))
+    provider_id = db.Column(db.String(80))
 
+    def __init__(self, firstname, lastname, email, provider, photo_url, provider_id, user_id):
+            self.firstname = firstname
+            self.lastname = lastname
+            self.email = email
+            self.provider = provider
+            self.photo_url = photo_url
+            self.provider_id = provider_id
+            self.user_id = user_id
