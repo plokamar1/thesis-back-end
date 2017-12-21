@@ -6,11 +6,8 @@ import json
 
 
 def getUserInfo(userToken, db):
-    users = User.query.all()
-    for user in users:
-        print(user.email, sys.stderr)
     graph_API_url = 'https://graph.facebook.com/v2.11/me'
-    fields_str = 'fields=email,first_name,last_name,short_name,id,link,verified'
+    fields_str = 'fields=email,first_name,last_name,id,link,verified'
     access_token = 'access_token=%s' % (userToken)
     user_info_str = graph_API_url + '?' + fields_str + '&' + access_token
     r = requests.get(user_info_str)
@@ -22,21 +19,22 @@ def getUserInfo(userToken, db):
     user_pic = pic_r.json()
     if 'error' in basic_info:
         if basic_info['error']['type'] == 'OAuthException':
-            response = {'error':'OAuthException'}
+            response = {'error': 'OAuthException'}
     elif not basic_info['verified']:
         response = {'error': 'User not verified'}
     else:
-        
-        user = User.query.filter_by(email = basic_info['email']).first()
-        #print(user.email, sys.stderr)
+
+        user = User.query.filter_by(email=basic_info['email']).first()
+        #If there isn't such email already saved in the db make a new user
         if user is None:
-            print('GOT IN', sys.stderr)
             response = newFbUser(basic_info, user_pic, db)
+        #if there is already that email and the primary provider isn't facebook then he should connect with the medium he has authenticated the first time
+        elif user.primary_provider != 'facebook':
+            response = {
+                'error': 'User has already authenticated with a different medium'}
+        #if there is that user correct just send back the user info he needs
         else:
             response = user.user_info_construction()
-    # graph = GraphAPI(access_token=userToken, version= "2.11")
-    # print(graph, sys.stderr)
-    # user =  graph.get_object(id='me', fields='email,first_name,last_name')
     return response
 
 
@@ -55,6 +53,3 @@ def newFbUser(basic_info, user_pic, db):
         json = user.user_info_construction()
 
         return json
-
-
-
