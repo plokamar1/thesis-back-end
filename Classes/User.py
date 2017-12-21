@@ -42,6 +42,8 @@ class User(db.Model):
         if self.password == password:
             json = self.user_info_construction()
             return json
+        else:
+            return None
 
     def generate_token(self, duration=3000):
         #the token encrypts the user's id. Upon verification we use that id
@@ -59,7 +61,7 @@ class User(db.Model):
             return None
 
         user = User.query.get(data['id'])
-        return user
+        return user.user_info_construction()
 
     def user_info_construction(self):
         connections = Connections.query.filter_by(user_id = self.id).all()
