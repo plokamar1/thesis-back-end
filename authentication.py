@@ -37,11 +37,19 @@ def addFormUser(db, data):
 
 
 def signInUser(_username, _password):
+	
+	response = User.verify_token(_username)
+	if response:
+		return response
+
 	#Getting the user object IF there is any with that username
 	user = User.query.filter_by(username=_username).first()
 	if user:
-		json = user.verify_pass(_password)
-		return json
+		response = user.verify_pass(_password)
+		if response:
+			return response
+		else:
+			return False
 	else:
 		return False
 
