@@ -50,7 +50,8 @@ class User(db.Model):
         #to return the user's info
         s = Serializer(current_app.config['SECRET_KEY'], expires_in=duration)
         return s.dumps({'id': self.id})
-
+    
+    @staticmethod
     def verify_token(token):
         s = Serializer(current_app.config['SECRET_KEY'])
         try:
