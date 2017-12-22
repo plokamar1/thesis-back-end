@@ -27,14 +27,17 @@ def index():
     ###SIGN UP
     if request.method == "POST":
         args = request.get_json()
-        userExists = authentication.isUserRegistered(db ,args)
+        #Check if user exists already
+        userExists = authentication.isUserRegistered(db ,args.get('username'), args.get('email'))
+        #Return Error
         if userExists:
             print(json.dumps({'error': 'User already exists'}), sys.stderr)
             return json.dumps({'error': 'User already exists'}), 403
         else:
-            print('new user', sys.stderr)
+            #Make new user
             resp = authentication.addUser(db, args)
             if 'error' in resp:
+                #if something went wrong return error
                 return json.dumps(resp), 403
             else:
                 return json.dumps(resp), 200
@@ -43,13 +46,20 @@ def index():
     if request.method == "GET":
         username = request.args.get('username')
         password = request.args.get('password')
+        exists = authentication.isUserRegistered(db, username, None)
+        if not exists:
+            #if there isnt any user with that username then return an error
+            return json.dumps({'message': 'No such user'}), 403
         user = authentication.signInUser(username, password)
         if user:
-            return json.dumps(user)
+            #return user data
+            print(user, sys.stderr)
+            return json.dumps(user), 200
         else:
-            abort(400)
+            return json.dumps({'message': 'Wrong Credentials'}),403
 
-@app.route("/api/fbdata", methods=["POST", "GET"])
+
+@app.route("/api/fbAuth", methods=["POST", "GET"])
 def get_user_data():
     if request.method== "GET":
         userToken = request.args.get('token')

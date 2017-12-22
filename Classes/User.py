@@ -94,13 +94,13 @@ class User(db.Model):
             'photo_url': self.photo_url,
             'token': self.generate_token(),
             'id': self.id,
-            'connections': connections_list
+            'user_accounts': connections_list
         }
         return json
 
 
 class Connections(db.Model):
-    __tablename__ = 'connections'
+    __tablename__ = 'user_accounts'
     id = db.Column(db.Integer, primary_key=True,
                    nullable=False, autoincrement=True)
     provider = db.Column(db.String(20))

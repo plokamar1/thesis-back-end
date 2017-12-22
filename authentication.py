@@ -56,16 +56,16 @@ def signInUser(_username, _password):
 		return False
 
 
-def isUserRegistered(db, data):
-	_username = data.get('username')
-	_email = data.get('email')
+def isUserRegistered(db, _username, _email):
+
 	#check username availability
 	results = User.query.filter_by(username=_username).first()
 	if results:
-		return 'Username already exists'
+		return True
 
 	#check email availability
-	results = User.query.filter_by(email=_email).first()
-	if results:
-		return 'Email already exists'
+	if _email:
+		results = User.query.filter_by(email=_email).first()
+		if results:
+			return True
 	return False
