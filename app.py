@@ -47,9 +47,9 @@ def index():
         username = request.args.get('username')
         password = request.args.get('password')
         exists = authentication.isUserRegistered(db, username, None)
-        if not exists:
-            #if there isnt any user with that username then return an error
-            return json.dumps({'message': 'No such user'}), 403
+        # if not exists:
+        #     #if there isnt any user with that username then return an error
+        #     return json.dumps({'message': 'No such user'}), 403
         user = authentication.signInUser(username, password)
         if user:
             #return user data
