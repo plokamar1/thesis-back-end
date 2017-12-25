@@ -7,18 +7,14 @@ import random
 import string
 
 
-def getUserInfo(userToken, db):
-    graph_API_url = 'https://graph.facebook.com/v2.11/me'
-    fields_str = 'fields=email,first_name,last_name,id,link,verified'
-    access_token = 'access_token=%s' % (userToken)
-    user_info_str = graph_API_url + '?' + fields_str + '&' + access_token
-    r = requests.get(user_info_str)
-    basic_info = r.json()
+def getUserInfo(facebook, db):
 
-    user_pic_str = graph_API_url + '/picture' + \
-        '?' + access_token + '&' + 'redirect=false'
-    pic_r = requests.get(user_pic_str)
-    user_pic = pic_r.json()
+    basic_info = facebook.get(
+        'https://graph.facebook.com/v2.11/me?fields=email,first_name,last_name,id,link,verified').json()
+
+    user_pic = facebook.get(
+        'https://graph.facebook.com/v2.11/me/picture?redirect=false').json()
+
     if 'error' in basic_info:
         if basic_info['error']['type'] == 'OAuthException':
             response = {'error': 'OAuthException'}
@@ -29,7 +25,8 @@ def getUserInfo(userToken, db):
         user = User.query.filter_by(email=basic_info['email']).first()
         #If there isn't such email already saved in the db make a new user
         if user is None:
-            response = newFbUser(basic_info, user_pic, db, userToken)
+            response = newFbUser(basic_info, user_pic, db,
+                                 facebook.token)
         #if there is already that email and the primary provider isn't facebook then he should connect with the medium he has authenticated the first time
         elif user.primary_provider != 'facebook':
             response = {
@@ -41,15 +38,16 @@ def getUserInfo(userToken, db):
 
 
 def newFbUser(basic_info, user_pic, db, access_token):
+    import json
+
     rand_username = ''.join(random.choice(
         string.ascii_uppercase + string.digits) for _ in range(10))
     user = User(basic_info['first_name'], basic_info['last_name'],
                 basic_info['email'], 'facebook', rand_username, user_pic['data']['url'])
     db.session.add(user)
     data = db.session.commit()
-
     connection = Connections(basic_info['first_name'], basic_info['last_name'],
-                             basic_info['email'], 'facebook', user_pic['data']['url'], basic_info['id'], user.id, access_token)
+                             basic_info['email'], 'facebook', user_pic['data']['url'], basic_info['id'], user.id, json.dumps(access_token))
 
     db.session.add(connection)
     data = db.session.commit()

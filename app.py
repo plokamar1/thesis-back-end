@@ -1,22 +1,32 @@
 #!flask/bin/python
 from flask import Flask, request, abort, g
 from flask_sqlalchemy import SQLAlchemy
-from requests_oauthlib import OAuth2Session
+from requests_oauthlib import OAuth2Session, OAuth1Session
+from requests_oauthlib.compliance_fixes import facebook_compliance_fix
 import sys
 import json
 from flask_cors import CORS
 
 import authFB
 import authGGL
+import authTTR
 from Classes.User import db
 import authentication
 
-gglCreds = json.load(open('client_secret.json'))
+##INITIALIZING GOOGLE
+gglCreds = json.load(open('Gclient_secret.json'))
 scope=['https://www.googleapis.com/auth/drive.metadata.readonly','https://mail.google.com/','profile','https://www.googleapis.com/auth/gmail.readonly ']
-google = OAuth2Session(gglCreds['web']['client_id'], scope = scope, redirect_uri = 'http://localhost:4200/auth/sign-in')
+google = OAuth2Session(gglCreds['client_id'], scope = scope, redirect_uri = 'http://localhost:4200/auth/sign-in?prov=ggl')
 
+##INITIALIZING FACEBOOK
+fbCreds = json.load(open('FBclient_secret.json'))
+facebook = OAuth2Session(fbCreds['client_id'] , redirect_uri= 'http://localhost:4200/auth/sign-in?prov=fb')
+facebook = facebook_compliance_fix(facebook)
 
-# authentication.createTables()
+ttrCreds = json.load(open('TTRclient_secret.json'))
+twitter = OAuth1Session(ttrCreds['client_id'],client_secret=ttrCreds['client_secret'] ,callback_uri = 'http://localhost:4200/auth/sign-in?prov=ttr')
+twitter.fetch_request_token(ttrCreds['token_uri'] )
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'BIMOJI OTO FLAT KNER Punk IPA'
@@ -72,27 +82,45 @@ def index():
 @app.route("/api/socialAuth", methods=["POST", "GET"])
 def socialAuth():
     if request.method== "GET":
-        prov = request.args.get('prov')
-        if prov == 'fb':
-            userToken = request.args.get('token')
-            resp = authFB.getUserInfo(userToken,db)
-            return json.dumps(resp)
-        if prov == 'ggl':
-            redirect_uri, state = google.authorization_url(gglCreds['web']['auth_uri'], access_type="offline", prompt="select_account")
-            return redirect_uri, 200
+        #Getting FB redirect uri
+        redirect_FB, state = facebook.authorization_url(fbCreds['auth_uri'] )
+        #Getting Google redirect uri
+        redirect_GGL, state = google.authorization_url(gglCreds['auth_uri'], access_type="offline", prompt="select_account")
+
+        #Getting Twitter redirect uri
+        redirect_TTR = twitter.authorization_url(ttrCreds['auth_uri'])
+
+        return json.dumps({'fb_uri': redirect_FB, 'ggl_uri': redirect_GGL, 'ttr_uri': redirect_TTR} ), 200
+
     if request.method == "POST":
         prov = request.get_json()
         prov = prov.get('prov')
         if prov == 'ggl':
             code = request.get_json().get('code')
-            google.fetch_token(gglCreds['web']['token_uri'] , client_secret=gglCreds['web']['client_secret'],code=code)
+            google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
             token = google.token
-            print(token['access_token'], sys.stderr)
             resp = authGGL.getUserInfo(google,db)
             if 'error' in resp:
                 return json.dumps(resp), 400
             else:
                 return json.dumps(resp), 200
+
+        if prov == 'fb':
+            code = request.get_json().get('code')
+            facebook.fetch_token(fbCreds['token_uri'], client_secret=fbCreds['client_secret'],code = code)
+            resp = authFB.getUserInfo(facebook, db)
+            if 'error' in resp:
+                return json.dumps(resp), 400
+            else:
+                return json.dumps(resp), 200
+
+        if prov == 'ttr':
+            code = request.get_json().get('code')
+            twitter.parse_authorization_response(code)
+            twitter.fetch_access_token(ttrCreds['access_token_uri'])
+            authTTR.getUserInfo(twitter, db)
+            #print(twitter.token, sys.stderr)
+            return "HELLO", 200
             
 
 
