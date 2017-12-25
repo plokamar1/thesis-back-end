@@ -8,6 +8,7 @@ import string
 
 
 def getUserInfo(gglSession, db):
+    import json
     email = gglSession.get(
         'https://www.googleapis.com/gmail/v1/users/me/profile').json()['emailAddress']
     basic_info = gglSession.get(
@@ -19,7 +20,7 @@ def getUserInfo(gglSession, db):
             response = {'error': 'OAuthException'}
     else:
         if user is None:
-            response = newGGLUser(email, basic_info, db, gglSession.token['access_token'])
+            response = newGGLUser(email, basic_info, db, gglSession.token)
         elif user.primary_provider != 'google':
             response = {
                 'error': 'User has already authenticated with a different medium'}
@@ -40,7 +41,7 @@ def newGGLUser(email, basic_info, db, access_token):
     data = db.session.commit()
 
     connection = Connections(basic_info['given_name'], basic_info['family_name'],
-                             email, 'google', basic_info['picture'], basic_info['id'], user.id, access_token)
+                             email, 'google', basic_info['picture'], basic_info['id'], user.id, json.dumps(access_token))
 
     db.session.add(connection)
     data = db.session.commit()
