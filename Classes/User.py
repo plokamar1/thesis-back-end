@@ -111,7 +111,7 @@ class Connections(db.Model):
     lastname = db.Column(db.String(20))
     photo_url = db.Column(db.String(2083))
     provider_id = db.Column(db.String(80))
-    access_token = db.Column(db.String(2083))
+    access_token = db.Column(db.Text())
 
     def __init__(self, firstname, lastname, email, provider, photo_url, provider_id, user_id, access_token):
             self.firstname = firstname
