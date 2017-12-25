@@ -17,11 +17,9 @@ def getUserInfo(gglSession, db):
     if 'error' in basic_info:
         if basic_info['error']['type'] == 'OAuthException':
             response = {'error': 'OAuthException'}
-    elif not basic_info['verified']:
-        response = {'error': 'User not verified'}
     else:
         if user is None:
-            response = newGGLUser(email, basic_info, db)
+            response = newGGLUser(email, basic_info, db, gglSession.token['access_token'])
         elif user.primary_provider != 'google':
             response = {
                 'error': 'User has already authenticated with a different medium'}
@@ -32,7 +30,7 @@ def getUserInfo(gglSession, db):
     return response
 
 
-def newGGLUser(email, basic_info, db):
+def newGGLUser(email, basic_info, db, access_token):
     rand_username = ''.join(random.choice(
         string.ascii_uppercase + string.digits) for _ in range(10))
 
@@ -42,7 +40,7 @@ def newGGLUser(email, basic_info, db):
     data = db.session.commit()
 
     connection = Connections(basic_info['given_name'], basic_info['family_name'],
-                             email, 'google', basic_info['picture'], basic_info['id'], user.id)
+                             email, 'google', basic_info['picture'], basic_info['id'], user.id, access_token)
 
     db.session.add(connection)
     data = db.session.commit()

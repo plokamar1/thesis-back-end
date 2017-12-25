@@ -29,7 +29,7 @@ def getUserInfo(userToken, db):
         user = User.query.filter_by(email=basic_info['email']).first()
         #If there isn't such email already saved in the db make a new user
         if user is None:
-            response = newFbUser(basic_info, user_pic, db)
+            response = newFbUser(basic_info, user_pic, db, userToken)
         #if there is already that email and the primary provider isn't facebook then he should connect with the medium he has authenticated the first time
         elif user.primary_provider != 'facebook':
             response = {
@@ -40,7 +40,7 @@ def getUserInfo(userToken, db):
     return response
 
 
-def newFbUser(basic_info, user_pic, db):
+def newFbUser(basic_info, user_pic, db, access_token):
     rand_username = ''.join(random.choice(
         string.ascii_uppercase + string.digits) for _ in range(10))
     user = User(basic_info['first_name'], basic_info['last_name'],
@@ -49,7 +49,7 @@ def newFbUser(basic_info, user_pic, db):
     data = db.session.commit()
 
     connection = Connections(basic_info['first_name'], basic_info['last_name'],
-                             basic_info['email'], 'facebook', user_pic['data']['url'], basic_info['id'], user.id)
+                             basic_info['email'], 'facebook', user_pic['data']['url'], basic_info['id'], user.id, access_token)
 
     db.session.add(connection)
     data = db.session.commit()
