@@ -7,12 +7,13 @@ import json
 from flask_cors import CORS
 
 import authFB
+import authGGL
 from Classes.User import db
 import authentication
 
 gglCreds = json.load(open('client_secret.json'))
 scope=['https://www.googleapis.com/auth/drive.metadata.readonly','https://mail.google.com/','profile','https://www.googleapis.com/auth/gmail.readonly ']
-google = OAuth2Session(gglCreds['web']['client_id'], scope = scope, redirect_uri = 'https://localhost:4200/auth/sign-in')
+google = OAuth2Session(gglCreds['web']['client_id'], scope = scope, redirect_uri = 'http://localhost:4200/auth/sign-in')
 
 
 # authentication.createTables()
@@ -81,23 +82,21 @@ def socialAuth():
             return redirect_uri, 200
     if request.method == "POST":
         code = request.get_json().get('code')
+        google.fetch_token(gglCreds['web']['token_uri'] , client_secret=gglCreds['web']['client_secret'],code=code)
+        token = google.token
+        resp = authGGL.getUserInfo(google,db)
+        print(token, sys.stderr)
+        print(token_updater, sys.stderr)
+        return json.dumps(resp)
+        
 
 
-@app.route('/api/googleuser', methods=['GET'])
-def user_create():
-    code = request.args.get('code')
-    google.fetch_token(gglCreds['web']['token_uri'] , client_secret=gglCreds['web']['client_secret'],code=code)
-    data = google.get('https://www.googleapis.com/gmail/v1/users/me/profile').json()
-    # flow.fetch_token(code = code)
+@app.route('/api/getmails', methods=['GET'])
+def get_mails():
 
-    # session = flow.authorized_session()
-    # g._gsession = session
-    # data = session.get('https://www.googleapis.com/userinfo/v2/me').json()
-    # print(data, sys.stderr)
+    mails_list = authGGL.get_mail(google)
+    return json.dumps(mails_list), 200
 
-    # data = session.get('https://www.googleapis.com/gmail/v1/users/me/profile').json()
-
-    return json.dumps(data)
 
 if __name__ == "__main__":
     app.run(debug=True)
