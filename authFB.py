@@ -3,6 +3,8 @@ from Classes.User import *
 import requests
 import sys
 import json
+import random
+import string
 
 
 def getUserInfo(userToken, db):
@@ -39,8 +41,10 @@ def getUserInfo(userToken, db):
 
 
 def newFbUser(basic_info, user_pic, db):
+    rand_username = ''.join(random.choice(
+        string.ascii_uppercase + string.digits) for _ in range(10))
     user = User(basic_info['first_name'], basic_info['last_name'],
-                basic_info['email'], 'facebook', '', user_pic['data']['url'])
+                basic_info['email'], 'facebook', rand_username, user_pic['data']['url'])
     db.session.add(user)
     data = db.session.commit()
 
