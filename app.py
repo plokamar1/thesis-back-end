@@ -23,7 +23,7 @@ app.config['SECRET_KEY'] = 'BIMOJI OTO FLAT KNER Punk IPA'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqldb://root:Zangetsou1992@localhost/backend_thesis'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
+cors = CORS(app, resources={r"/.*": {"origins": "*"}})
 
 
 
@@ -81,14 +81,19 @@ def socialAuth():
             redirect_uri, state = google.authorization_url(gglCreds['web']['auth_uri'], access_type="offline", prompt="select_account")
             return redirect_uri, 200
     if request.method == "POST":
-        code = request.get_json().get('code')
-        google.fetch_token(gglCreds['web']['token_uri'] , client_secret=gglCreds['web']['client_secret'],code=code)
-        token = google.token
-        resp = authGGL.getUserInfo(google,db)
-        print(token, sys.stderr)
-        print(token_updater, sys.stderr)
-        return json.dumps(resp)
-        
+        prov = request.get_json()
+        prov = prov.get('prov')
+        if prov == 'ggl':
+            code = request.get_json().get('code')
+            google.fetch_token(gglCreds['web']['token_uri'] , client_secret=gglCreds['web']['client_secret'],code=code)
+            token = google.token
+            print(token['access_token'], sys.stderr)
+            resp = authGGL.getUserInfo(google,db)
+            if 'error' in resp:
+                return json.dumps(resp), 400
+            else:
+                return json.dumps(resp), 200
+            
 
 
 @app.route('/api/getmails', methods=['GET'])
