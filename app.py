@@ -12,19 +12,19 @@ import authGGL
 import authTTR
 from Classes.User import db
 import authentication
-
+#################
 ##INITIALIZING GOOGLE
 gglCreds = json.load(open('Gclient_secret.json'))
 scope=['https://www.googleapis.com/auth/drive.metadata.readonly','https://mail.google.com/','profile','https://www.googleapis.com/auth/gmail.readonly ']
-google = OAuth2Session(gglCreds['client_id'], scope = scope, redirect_uri = 'http://localhost:4200/auth/sign-in?prov=ggl')
+google = OAuth2Session(gglCreds['client_id'], scope = scope, redirect_uri = 'http://localhost:4200/load?prov=ggl')
 
 ##INITIALIZING FACEBOOK
 fbCreds = json.load(open('FBclient_secret.json'))
-facebook = OAuth2Session(fbCreds['client_id'] , redirect_uri= 'http://localhost:4200/auth/sign-in?prov=fb')
+facebook = OAuth2Session(fbCreds['client_id'] , redirect_uri= 'http://localhost:4200/load?prov=fb')
 facebook = facebook_compliance_fix(facebook)
 
 ttrCreds = json.load(open('TTRclient_secret.json'))
-twitter = OAuth1Session(ttrCreds['client_id'],client_secret=ttrCreds['client_secret'] ,callback_uri = 'http://localhost:4200/auth/sign-in?prov=ttr')
+twitter = OAuth1Session(ttrCreds['client_id'],client_secret=ttrCreds['client_secret'] ,callback_uri = 'http://localhost:4200/load?prov=ttr')
 twitter.fetch_request_token(ttrCreds['token_uri'] )
 
 
