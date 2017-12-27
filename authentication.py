@@ -4,6 +4,7 @@ import hashlib
 import uuid
 from flask_sqlalchemy import SQLAlchemy
 from Classes.User import User
+import authFB
 
 def addUser(db, data):
 	if data.get('loginType') == 'FORM':
@@ -40,9 +41,15 @@ def addFormUser(db, data):
 
 def signInUser(_username, _password):
 	
-	response = User.verify_token(_username)
-	if response:
+	user = User.verify_token(_username)
+	if user:
+		reponse = user.user_info_construction()
 		return response
+		# if user.primary_provider == 'facebook':
+		# 	authFB.refresh_Token(user)
+		# if user.primary_provider == 'google':
+		# if user.primary_provider == 'twitter':
+		
 
 	#Getting the user object IF there is any with that username
 	user = User.query.filter_by(username=_username).first()

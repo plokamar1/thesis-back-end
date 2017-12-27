@@ -41,9 +41,9 @@ class User(db.Model):
             "You;ll never find it:)" + _password + self.salt).hexdigest()
         if self.password == password:
             json = self.user_info_construction()
-            return json
+            return True
         else:
-            return None
+            return False
 
     def generate_token(self, duration=3000):
         #the token encrypts the user's id. Upon verification we use that id
@@ -62,7 +62,7 @@ class User(db.Model):
             return None
 
         user = User.query.get(data['id'])
-        return user.user_info_construction()
+        return user
 
     def user_info_construction(self):
         connections = Connections.query.filter_by(user_id = self.id).all()
