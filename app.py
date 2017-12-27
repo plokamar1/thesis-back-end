@@ -117,10 +117,12 @@ def socialAuth():
         if prov == 'ttr':
             code = request.get_json().get('code')
             twitter.parse_authorization_response(code)
-            twitter.fetch_access_token(ttrCreds['access_token_uri'])
-            authTTR.getUserInfo(twitter, db)
-            #print(twitter.token, sys.stderr)
-            return "HELLO", 200
+            tokens = twitter.fetch_access_token(ttrCreds['access_token_uri'])
+            resp = authTTR.getUserInfo(twitter, db, tokens)
+            if 'error' in resp:
+                return json.dumps(resp), 400
+            else:
+                return json.dumps(resp), 200
             
 
 
