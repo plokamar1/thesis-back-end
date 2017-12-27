@@ -73,7 +73,6 @@ def index():
         user = authentication.signInUser(username, password)
         if user:
             #return user data
-            print(json.dumps(user), sys.stderr)
             return json.dumps(user), 200
         else:
             return json.dumps({'message': 'Wrong Credentials'}),403

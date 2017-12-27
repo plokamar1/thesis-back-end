@@ -5,6 +5,7 @@ import hashlib
 import uuid
 from itsdangerous import (TimedJSONWebSignatureSerializer
                           as Serializer, BadSignature, SignatureExpired)
+from time import time
 import sys
 db = SQLAlchemy()
 
@@ -93,6 +94,7 @@ class User(db.Model):
             'email': self.email,
             'photo_url': self.photo_url,
             'token': self.generate_token(),
+            'expires_at': int((time() + 3000)* 1000) , 
             'id': self.id,
             'user_accounts': connections_list
         }
