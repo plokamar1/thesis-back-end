@@ -43,7 +43,7 @@ def signInUser(_username, _password):
 	
 	user = User.verify_token(_username)
 	if user:
-		reponse = user.user_info_construction()
+		response = user.user_info_construction()
 		return response
 		# if user.primary_provider == 'facebook':
 		# 	authFB.refresh_Token(user)
