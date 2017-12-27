@@ -8,7 +8,6 @@ import string
 
 
 def getUserInfo(gglSession, db):
-    import json
     email = gglSession.get(
         'https://www.googleapis.com/gmail/v1/users/me/profile').json()['emailAddress']
     basic_info = gglSession.get(
@@ -26,12 +25,15 @@ def getUserInfo(gglSession, db):
                 'error': 'User has already authenticated with a different medium'}
 
         else:
-            response = user.user_info_construction()
+            newUser = updatedGGLUser(email, basic_info, db, gglSession.token , user)
+            response = newUser.user_info_construction()
 
     return response
 
 
 def newGGLUser(email, basic_info, db, access_token):
+    import json
+
     rand_username = ''.join(random.choice(
         string.ascii_uppercase + string.digits) for _ in range(10))
 
@@ -50,6 +52,25 @@ def newGGLUser(email, basic_info, db, access_token):
     if not data:
         json = user.user_info_construction()
         return json
+
+def updatedGGLUser(email, basic_info, db, access_token, user):
+    user.firstname= basic_info['given_name']
+    user.lastname = basic_info['family_name']
+    user.email = email
+    user.photo_url = basic_info['picture']
+
+    db.session.commit()
+
+    user_account = Connections.query.filter_by(user_id = user.id).first()
+    user_account.firstname= basic_info['given_name']
+    user_account.lastname = basic_info['family_name']
+    user_account.email = email
+    user_account.photo_url = basic_info['picture']
+    user_account.access_token = json.dumps(access_token)
+
+    db.session.commit()
+    return user
+
 
 
 def get_mail(gglSession):
