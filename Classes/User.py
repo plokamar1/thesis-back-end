@@ -41,7 +41,7 @@ class User(db.Model):
         password = hashlib.sha512(
             "You;ll never find it:)" + _password + self.salt).hexdigest()
         if self.password == password:
-            json = self.user_info_construction()
+            #json = self.user_info_construction()
             return True
         else:
             return False
@@ -64,6 +64,14 @@ class User(db.Model):
 
         user = User.query.get(data['id'])
         return user
+
+    def token_construction(self):
+        token = self.generate_token()
+        expires_at = int((time() + 3000)* 1000)
+        return {
+            "token": token,
+            "expires_at": expires_at
+            }
 
     def user_info_construction(self):
         connections = Connections.query.filter_by(user_id = self.id).all()

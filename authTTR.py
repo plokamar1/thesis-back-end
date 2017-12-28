@@ -34,7 +34,7 @@ def getUserInfo(twitter, db, tokens):
         #if there is that user correct just send back the user info he needs
         else:
             newUser = updatedTwitterUser(basic_info, db, tokens, user)
-            response = newUser.user_info_construction()
+            response = newUser.token_construction()
     return response
 
 
@@ -55,7 +55,7 @@ def newTwitterUser(basic_info, db, tokens):
     db.session.add(connection)
     data = db.session.commit()
     if not data:
-        json = user.user_info_construction()
+        json = user.token_construction()
 
         return json
 

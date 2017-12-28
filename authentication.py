@@ -43,8 +43,7 @@ def signInUser(_username, _password):
 	
 	user = User.verify_token(_username)
 	if user:
-		response = user.user_info_construction()
-		return response
+		return user
 		# if user.primary_provider == 'facebook':
 		# 	authFB.refresh_Token(user)
 		# if user.primary_provider == 'google':
@@ -56,7 +55,7 @@ def signInUser(_username, _password):
 	if user:
 		response = user.verify_pass(_password)
 		if response:
-			return response
+			return user
 		else:
 			return False
 	else:

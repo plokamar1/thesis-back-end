@@ -26,7 +26,7 @@ def getUserInfo(gglSession, db):
 
         else:
             newUser = updatedGGLUser(email, basic_info, db, gglSession.token , user)
-            response = newUser.user_info_construction()
+            response = newUser.token_construction()
 
     return response
 
@@ -50,7 +50,7 @@ def newGGLUser(email, basic_info, db, access_token):
 
     data = db.session.commit()
     if not data:
-        json = user.user_info_construction()
+        json = user.token_construction()
         return json
 
 def updatedGGLUser(email, basic_info, db, access_token, user):

@@ -37,7 +37,7 @@ def getUserInfo(facebook, db):
         else:
             newUser = updatedFbUser(basic_info, user_pic, db, facebook.token, user)
 
-            response = newUser.user_info_construction()
+            response = newUser.token_construction()
     return response
 
 
@@ -56,7 +56,7 @@ def newFbUser(basic_info, user_pic, db, access_token):
     db.session.add(connection)
     data = db.session.commit()
     if not data:
-        json = user.user_info_construction()
+        json = user.token_construction()
 
         return json
 

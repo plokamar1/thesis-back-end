@@ -28,6 +28,7 @@ twitter = OAuth1Session(ttrCreds['client_id'],client_secret=ttrCreds['client_sec
 twitter.fetch_request_token(ttrCreds['token_uri'] )
 
 
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'BIMOJI OTO FLAT KNER Punk IPA'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqldb://root:Zangetsou1992@localhost/backend_thesis'
@@ -73,7 +74,8 @@ def index():
         user = authentication.signInUser(username, password)
         if user:
             #return user data
-            return json.dumps(user), 200
+
+            return json.dumps(user.token_construction()), 200
         else:
             return json.dumps({'message': 'Wrong Credentials'}),403
 
@@ -122,8 +124,16 @@ def socialAuth():
                 return json.dumps(resp), 400
             else:
                 return json.dumps(resp), 200
-            
 
+@app.route('/api/get-user', methods=['GET'])
+def get_user():
+    token = request.args.get('token')
+    user = authentication.signInUser(token, '')
+    if user:
+        return json.dumps(user.user_info_construction())
+    else:
+        abort(400)
+            
 
 @app.route('/api/getmails', methods=['GET'])
 def get_mails():
