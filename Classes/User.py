@@ -123,7 +123,7 @@ class User(db.Model):
             'expires_at': int((time() + 3000) * 1000),
             'id': self.id,
             'user_accounts': self.connections_construction(),
-            'rss_feeds': self.rss_constuction()
+            'rss_feeds': self.rss_construction()
         }
         return json
 
