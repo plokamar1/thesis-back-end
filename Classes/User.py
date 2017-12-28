@@ -23,6 +23,7 @@ class User(db.Model):
     password = db.Column(db.String(380))
     photo_url = db.Column(db.String(2083))
     connections = db.relationship('Connections', backref='profiles', lazy=True)
+    rss_feeds = db.Column(db.String(2083))
 
     def __init__(self, firstname, lastname, email, primary_provider, username, photo_url):
         self.firstname = firstname
@@ -51,7 +52,7 @@ class User(db.Model):
         #to return the user's info
         s = Serializer(current_app.config['SECRET_KEY'], expires_in=duration)
         return s.dumps({'id': self.id})
-    
+
     @staticmethod
     def verify_token(token):
         s = Serializer(current_app.config['SECRET_KEY'])
@@ -67,15 +68,28 @@ class User(db.Model):
 
     def token_construction(self):
         token = self.generate_token()
-        expires_at = int((time() + 3000)* 1000)
+        expires_at = int((time() + 3000) * 1000)
         return {
             "token": token,
             "expires_at": expires_at
-            }
+        }
 
-    def user_info_construction(self):
-        connections = Connections.query.filter_by(user_id = self.id).all()
+    def rss_construction(self):
+        rss_feeds = Rss.query.filter_by(user_id=self.id).all()
+        rss_list = []
+        if isinstance(rss_feeds, list):
+            for rss in rss_feeds:
+                rss_list.append(rss.url)
+        else:
+            rss_list.append(rss_feeds.url)
+
+        return rss_list
+
+    def connections_construction(self):
+        connections = Connections.query.filter_by(user_id=self.id).all()
         connections_list = []
+        if not connections:
+            return connections_list
         if isinstance(connections, list):
             for connection in connections:
                 data = {
@@ -96,15 +110,20 @@ class User(db.Model):
             }
             connections_list.append(data)
 
+        return connections_list
+
+    def user_info_construction(self):
+
         json = {
             'firstname': self.firstname,
             'lastname': self.lastname,
             'email': self.email,
             'photo_url': self.photo_url,
             'token': self.generate_token(),
-            'expires_at': int((time() + 3000)* 1000) , 
+            'expires_at': int((time() + 3000) * 1000),
             'id': self.id,
-            'user_accounts': connections_list
+            'user_accounts': self.connections_construction(),
+            'rss_feeds': self.rss_constuction()
         }
         return json
 
@@ -132,3 +151,16 @@ class Connections(db.Model):
             self.provider_id = provider_id
             self.user_id = user_id
             self.access_token = access_token
+
+
+class Rss(db.Model):
+    __tablename__ = 'rss_feeds'
+    id = db.Column(db.Integer, primary_key=True,
+                   nullable=False, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey(
+        'profiles.id'), nullable=False)
+    url = db.Column(db.String(2083))
+
+    def __init__(self, user_id, url):
+        self.user_id = user_id
+        self.url = url

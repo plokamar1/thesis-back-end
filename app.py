@@ -11,6 +11,7 @@ import authFB
 import authGGL
 import authTTR
 from Classes.User import db
+from Classes.User import *
 import authentication
 #################
 ##INITIALIZING GOOGLE
@@ -130,16 +131,48 @@ def get_user():
     token = request.args.get('token')
     user = authentication.signInUser(token, '')
     if user:
+        user_data = user.user_info_construction()
+        print(user_data, sys.stderr)
         return json.dumps(user.user_info_construction())
     else:
         abort(400)
-            
+
+@app.route('/api/rss', methods=['GET'])
+def modify_rss():
+    token = request.args.get('token')
+    rss_url = request.args.get('rss')
+    user = authentication.signInUser(token, '')
+    if not user:
+        abort(400)
+    
+    action = request.args.get('action')
+    if action == 'add':
+        exists = Rss.query.filter_by(user_id = user.id, url=rss_url).scalar() is not None
+        if exists:
+            rss_list = user.rss_construction()
+            return json.dumps({"rss_feeds": rss_list}), 200
+        rss = Rss(user.id, rss_url)
+        db.session.add(rss)
+        db.session.commit()
+        rss_list = user.rss_construction()
+        return json.dumps({"rss_feeds": rss_list}), 200
+
+    if action == 'remove':
+        rss = Rss.query.filter_by(user_id = user.id, url = rss_url).first()
+        if rss:
+            db.session.delete(rss)
+            db.session.commit()
+        rss_list = user.rss_construction()
+        return json.dumps({"rss_feeds": rss_list}), 200
+    abort(400)
 
 @app.route('/api/getmails', methods=['GET'])
 def get_mails():
-
-    mails_list = authGGL.get_mail(google)
-    return json.dumps(mails_list), 200
+    token = request.args.get('token')
+    user = authentication.signInUser(token, '')
+    if user:
+        mails_list = authGGL.get_mail(google)
+        return json.dumps(mails_list), 200
 
 
 if __name__ == "__main__":
