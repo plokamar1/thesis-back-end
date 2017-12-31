@@ -32,7 +32,7 @@ twitter.fetch_request_token(ttrCreds['token_uri'] )
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'BIMOJI OTO FLAT KNER Punk IPA'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqldb://root:Zangetsou1992@localhost/backend_thesis'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqldb://root:Zangetsou1992@localhost/backend_thesis?charset=utf8'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 cors = CORS(app, resources={r"/.*": {"origins": "*"}})
@@ -96,12 +96,25 @@ def socialAuth():
 
     if request.method == "POST":
         prov = request.get_json()
+        token = prov.get('token')
         prov = prov.get('prov')
+        #In case we receive a token then we update a user's profile with an extra connection
+        if token :
+            user = authentication.signInUser(token, '')
+            if user and prov=='ggl':
+                code = request.get_json().get('code')
+                google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
+                resp = authGGL.getUserInfo(google, db, user)
+                if 'error' in resp:
+                    return json.dumps(resp), 400
+                else:
+                    return json.dumps(resp), 200
+
         if prov == 'ggl':
             code = request.get_json().get('code')
             google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
             token = google.token
-            resp = authGGL.getUserInfo(google,db)
+            resp = authGGL.getUserInfo(google,db,None)
             if 'error' in resp:
                 return json.dumps(resp), 400
             else:

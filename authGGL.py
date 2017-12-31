@@ -7,13 +7,24 @@ import random
 import string
 
 
-def getUserInfo(gglSession, db):
+def getUserInfo(gglSession, db, old_user):
     email = gglSession.get(
         'https://www.googleapis.com/gmail/v1/users/me/profile').json()['emailAddress']
     basic_info = gglSession.get(
         'https://www.googleapis.com/userinfo/v2/me').json()
 
+    #print(basic_info.json()['family_name'], sys.stderr)
     user = User.query.filter_by(email=email).first()
+    if old_user:
+        exists = Connections.query.filter_by(email=email, provider = 'google').first()
+        if not exists:
+            newConnection(email, basic_info, db, gglSession.token, old_user)
+            response = old_user.token_construction()
+            return response
+        else:
+            response = {'error': 'Already connected account!'}
+            return response
+        
     if 'error' in basic_info:
         if basic_info['error']['type'] == 'OAuthException':
             response = {'error': 'OAuthException'}
@@ -30,6 +41,17 @@ def getUserInfo(gglSession, db):
 
     return response
 
+def newConnection(email, basic_info, db, access_token, user):
+
+    connection = Connections(basic_info['given_name'], basic_info['family_name'],
+                             email, 'google', basic_info['picture'], basic_info['id'], user.id, json.dumps(access_token))
+
+    db.session.add(connection)
+    data = db.session.commit()
+    if data:
+        return False
+    else:
+        return True
 
 def newGGLUser(email, basic_info, db, access_token):
     import json
@@ -42,16 +64,11 @@ def newGGLUser(email, basic_info, db, access_token):
     db.session.add(user)
     data = db.session.commit()
 
-    connection = Connections(basic_info['given_name'], basic_info['family_name'],
-                             email, 'google', basic_info['picture'], basic_info['id'], user.id, json.dumps(access_token))
+    newConnection(email, basic_info, db, access_token, user)
 
-    db.session.add(connection)
-    data = db.session.commit()
 
-    data = db.session.commit()
-    if not data:
-        json = user.token_construction()
-        return json
+    json = user.token_construction()
+    return json
 
 def updatedGGLUser(email, basic_info, db, access_token, user):
     user.firstname= basic_info['given_name']
@@ -70,8 +87,6 @@ def updatedGGLUser(email, basic_info, db, access_token, user):
 
     db.session.commit()
     return user
-
-
 
 def get_mail(gglSession):
     mail_list = gglSession.get(
