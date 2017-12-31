@@ -135,7 +135,7 @@ class Connections(db.Model):
     provider = db.Column(db.String(20))
     user_id = db.Column(db.Integer, db.ForeignKey(
         'profiles.id'), nullable=False)
-    email = db.Column(db.String(80), unique=True)
+    email = db.Column(db.String(80))
     firstname = db.Column(db.String(20))
     lastname = db.Column(db.String(20))
     photo_url = db.Column(db.String(2083))
