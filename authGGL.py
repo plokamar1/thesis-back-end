@@ -5,6 +5,7 @@ import sys
 import json
 import random
 import string
+from requests_oauthlib import OAuth2Session
 
 
 def getUserInfo(gglSession, db, old_user):
@@ -88,10 +89,82 @@ def updatedGGLUser(email, basic_info, db, access_token, user):
     db.session.commit()
     return user
 
-def get_mail(gglSession):
-    mail_list = gglSession.get(
-        'https://www.googleapis.com/gmail/v1/users/me/messages').json()
+def get_mail(user, db):
+    google = token_refresh(user , db)
+    payload = {
+            'labelIds': ['INBOX'],
+            'maxResults': 25,
+            'q': 'category:primary'    
+            }
+
+    mail_list = google.get(
+        'https://www.googleapis.com/gmail/v1/users/me/messages', params = payload).json()
+
+    fetched_messages = messages_construction(mail_list, google)
+
     if 'error' in mail_list:
         mail_list = {'error': 'OAuthException'}
 
-    return mail_list
+    return {'messages': fetched_messages}
+
+def messages_construction(mail_list, google):
+
+    fetched_messages = []
+
+    for message in mail_list['messages']:
+        new_message = google.get('https://www.googleapis.com/gmail/v1/users/me/messages/'+message['id'], params= {'format':'full'}).json()
+        mess_id = new_message['id']
+        mess_timestamp = new_message['internalDate']
+        if 'UNREAD' in new_message['labelIds']:
+            mess_unread = True
+        else:
+            mess_unread = False
+        for header in new_message['payload']['headers']:
+            if header['name'] == 'Subject':
+                mess_subject =header['value']
+            if header['name'] == 'Date':
+                mess_date = header['value']
+            if header['name'] == 'From':
+                mess_from = header['value']
+        if new_message['payload']['body']['size'] == 0:
+            mess_body = new_message['payload']['parts'][1]['body']['data']
+        else:
+            mess_body = new_message['payload']['body']['data']
+
+        mess_json = {
+        'From': mess_from,
+        'Id': mess_id,
+        'Timestamp': mess_timestamp,
+        'Subject': mess_subject,
+        'Date': mess_date,
+        'Body': mess_body,
+        'Unread': mess_unread
+        }
+
+
+        fetched_messages.append(mess_json)
+
+    return fetched_messages
+   
+
+
+def token_refresh(user, db):
+    account = Connections.query.filter_by(user_id = user.id, provider = 'google').first()
+    token = account.access_token
+    gglCreds = json.load(open('Gclient_secret.json'))
+
+    extra = {
+    'client_id': gglCreds['client_id'],
+    'client_secret': gglCreds['client_secret']
+    }
+
+    google = OAuth2Session(gglCreds['client_id'], token = json.loads(token), auto_refresh_kwargs=extra,
+                           auto_refresh_url=gglCreds['token_uri'])
+
+    basic_info = google.get('https://www.googleapis.com/userinfo/v2/me').json()
+    
+    new_token = google.token
+
+    account.access_token = json.dumps(new_token)
+    db.session.commit()
+    return google

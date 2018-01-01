@@ -114,6 +114,7 @@ def socialAuth():
             code = request.get_json().get('code')
             google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
             token = google.token
+            print(google, sys.stderr)
             resp = authGGL.getUserInfo(google,db,None)
             if 'error' in resp:
                 return json.dumps(resp), 400
@@ -184,7 +185,7 @@ def get_mails():
     token = request.args.get('token')
     user = authentication.signInUser(token, '')
     if user:
-        mails_list = authGGL.get_mail(google)
+        mails_list = authGGL.get_mail(user, db)
         return json.dumps(mails_list), 200
 
 
