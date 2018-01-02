@@ -6,7 +6,7 @@ import json
 import random
 import string
 from requests_oauthlib import OAuth2Session
-
+import re
 
 def getUserInfo(gglSession, db, old_user):
     email = gglSession.get(
@@ -93,7 +93,7 @@ def get_mail(user, db):
     google = token_refresh(user , db)
     payload = {
             'labelIds': ['INBOX'],
-            'maxResults': 25,
+            'maxResults':25,
             'q': 'category:primary'    
             }
 
@@ -110,9 +110,28 @@ def get_mail(user, db):
 def messages_construction(mail_list, google):
 
     fetched_messages = []
+    headers = {'Authorization': 'Bearer '+google.token['access_token'],
+                'Content-Type': 'multipart/mixed;boundary="foo_bar"'}
+    whole_request = '--foo_bar\n'
 
     for message in mail_list['messages']:
-        new_message = google.get('https://www.googleapis.com/gmail/v1/users/me/messages/'+message['id'], params= {'format':'full'}).json()
+        req_string = '''Content-Type: application/http
+
+GET   /gmail/v1/users/me/messages/'''+message['id']+'''
+
+--foo_bar
+'''
+        whole_request = whole_request + req_string
+
+    batch_req = google.post('https://www.googleapis.com/batch',headers=headers,data = whole_request)
+    index = batch_req.headers['Content-Type'].find('boundary')
+    batch_code = batch_req.headers['Content-Type'][index:].replace('boundary=', '')
+    messages = batch_req.text.split('--'+batch_code)
+    messages = splitter(messages)
+        
+    for new_message in messages:
+        new_message = json.loads(new_message)
+        # new_message = google.get('https://www.googleapis.com/gmail/v1/users/me/messages/'+message['id'], params= {'format':'full'}).json()
         mess_id = new_message['id']
         mess_timestamp = new_message['internalDate']
         if 'UNREAD' in new_message['labelIds']:
@@ -127,9 +146,13 @@ def messages_construction(mail_list, google):
             if header['name'] == 'From':
                 mess_from = header['value']
         if new_message['payload']['body']['size'] == 0:
-            mess_body = new_message['payload']['parts'][1]['body']['data']
+            if 'parts' in new_message['payload']['parts'][0]:
+                mess_body = new_message['payload']['parts'][0]['parts'][0]['body']['data']
+            else:
+                mess_body = new_message['payload']['parts'][0]['body']['data']
         else:
             mess_body = new_message['payload']['body']['data']
+
 
         mess_json = {
         'From': mess_from,
@@ -143,10 +166,28 @@ def messages_construction(mail_list, google):
 
 
         fetched_messages.append(mess_json)
+    # batch_req = google.post('https://www.googleapis.com/batch',headers=headers,data = whole_request)
+    # index = batch_req.headers['Content-Type'].find('boundary')
+    # batch_code = batch_req.headers['Content-Type'][index:].replace('boundary=', '')
+    # messages = batch_req.text.split('--'+batch_code)
+    # messages = splitter(messages)
+    # print(len(messages))
+
+    # response = json.dumps(re.findall(r'\{[^}]*\}', batch_req.text))
+    # #str1 = ''.join(response)
+    # response = json.loads(response)
+    # print(response)
 
     return fetched_messages
    
 
+def splitter(str_lst):
+    new_lst = []
+    for data in str_lst:
+        index = data.find('{')
+        if index != 0 and index != -1:
+            new_lst.append(data[index:])
+    return new_lst
 
 def token_refresh(user, db):
     account = Connections.query.filter_by(user_id = user.id, provider = 'google').first()
