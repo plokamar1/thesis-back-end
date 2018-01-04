@@ -7,6 +7,11 @@ import random
 import string
 from requests_oauthlib import OAuth2Session
 import re
+from email.mime.text import MIMEText
+
+
+import base64
+#from app import db
 
 def getUserInfo(gglSession, db, old_user):
     email = gglSession.get(
@@ -89,11 +94,39 @@ def updatedGGLUser(email, basic_info, db, access_token, user):
     db.session.commit()
     return user
 
+
+
+def modify_mail(label, action, mess_id ,user, db):
+    google = token_refresh(user, db)
+    connection = Connections.query.filter_by(user_id = user.id, provider = 'google').first()
+    headers = {'Content-Type': 'application/json'}
+
+    if action == 'add':
+
+        request_body = {'removeLabelIds': [], 'addLabelIds': [label]}
+    if action == 'remove':
+        request_body = {'removeLabelIds': [label], 'addLabelIds': []}
+    print(json.dumps(request_body))
+    request_url = 'https://www.googleapis.com/gmail/v1/users/'+connection.provider_id+'/messages/'+mess_id+'/modify'
+    print(request_url)
+
+    response = google.post(request_url,headers=headers,data=json.dumps(request_body)).json()
+
+    
+    #response = google.post('https://www.googleapis.com/gmail/v1/users/me/messages/'+mess_id+'/modify', data=json.dumps({"removeLabelIds": [label]})).json()
+    print(response)
+    if 'error' in response:
+        return False
+    else:
+        return True
+
+
+
 def get_mail(user, db):
     google = token_refresh(user , db)
     payload = {
             'labelIds': ['INBOX'],
-            'maxResults':25,
+            'maxResults':15,
             'q': 'category:primary'    
             }
 
@@ -102,14 +135,17 @@ def get_mail(user, db):
 
     fetched_messages = messages_construction(mail_list, google)
 
+
     if 'error' in mail_list:
         mail_list = {'error': 'OAuthException'}
 
-    return {'messages': fetched_messages}
+    return {'messages': fetched_messages,
+    'nextPageToken': mail_list['nextPageToken']}
 
 def messages_construction(mail_list, google):
 
     fetched_messages = []
+    #batch get mails for user
     headers = {'Authorization': 'Bearer '+google.token['access_token'],
                 'Content-Type': 'multipart/mixed;boundary="foo_bar"'}
     whole_request = '--foo_bar\n'
@@ -124,14 +160,16 @@ GET   /gmail/v1/users/me/messages/'''+message['id']+'''
         whole_request = whole_request + req_string
 
     batch_req = google.post('https://www.googleapis.com/batch',headers=headers,data = whole_request)
+    #Find boundary code to split the string we received
     index = batch_req.headers['Content-Type'].find('boundary')
     batch_code = batch_req.headers['Content-Type'][index:].replace('boundary=', '')
     messages = batch_req.text.split('--'+batch_code)
+    #fetch a list with the json strings
     messages = splitter(messages)
         
     for new_message in messages:
         new_message = json.loads(new_message)
-        # new_message = google.get('https://www.googleapis.com/gmail/v1/users/me/messages/'+message['id'], params= {'format':'full'}).json()
+        #get the data from each json string
         mess_id = new_message['id']
         mess_timestamp = new_message['internalDate']
         if 'UNREAD' in new_message['labelIds']:
@@ -139,17 +177,24 @@ GET   /gmail/v1/users/me/messages/'''+message['id']+'''
         else:
             mess_unread = False
         for header in new_message['payload']['headers']:
-            if header['name'] == 'Subject':
+            if header['name'] in ("Subject","subject"):
                 mess_subject =header['value']
-            if header['name'] == 'Date':
+
+            if header['name'] in ("Date","date"):
                 mess_date = header['value']
-            if header['name'] == 'From':
+
+            if header['name'] in ("From","from"):
                 mess_from = header['value']
+
         if new_message['payload']['body']['size'] == 0:
             if 'parts' in new_message['payload']['parts'][0]:
-                mess_body = new_message['payload']['parts'][0]['parts'][0]['body']['data']
+                for part in new_message['payload']['parts'][0]['parts'] :
+                    if part['mimeType'] == 'text/html':
+                        mess_body = part['body']['data']
             else:
-                mess_body = new_message['payload']['parts'][0]['body']['data']
+                for part in new_message['payload']['parts']:
+                    if part['mimeType'] == 'text/html':
+                        mess_body = part['body']['data']
         else:
             mess_body = new_message['payload']['body']['data']
 
@@ -166,21 +211,29 @@ GET   /gmail/v1/users/me/messages/'''+message['id']+'''
 
 
         fetched_messages.append(mess_json)
-    # batch_req = google.post('https://www.googleapis.com/batch',headers=headers,data = whole_request)
-    # index = batch_req.headers['Content-Type'].find('boundary')
-    # batch_code = batch_req.headers['Content-Type'][index:].replace('boundary=', '')
-    # messages = batch_req.text.split('--'+batch_code)
-    # messages = splitter(messages)
-    # print(len(messages))
 
-    # response = json.dumps(re.findall(r'\{[^}]*\}', batch_req.text))
-    # #str1 = ''.join(response)
-    # response = json.loads(response)
-    # print(response)
 
     return fetched_messages
-   
 
+def send_mail(data, db, user):
+    google = token_refresh(user , db)
+    data = json.loads(data)
+    message = MIMEText(data['body'])
+    message['To'] = data['to']
+    # message['From'] = data['from']
+    message['Subject'] = data['subject']
+    headers = {'Content-Type': 'application/json'}
+    print(message.as_string())
+    request_body =  {'raw': base64.urlsafe_b64encode(message.as_string())}
+    print(request_body)
+    response = google.post('https://www.googleapis.com/gmail/v1/users/me/messages/send',headers=headers, data = json.dumps(request_body)).json()
+    print(response)
+    if 'error' in response:
+        return False
+    else:
+        return True
+
+   
 def splitter(str_lst):
     new_lst = []
     for data in str_lst:
@@ -188,6 +241,33 @@ def splitter(str_lst):
         if index != 0 and index != -1:
             new_lst.append(data[index:])
     return new_lst
+
+
+
+
+def toTrash(data, user, db):
+    google = token_refresh(user , db)
+    data = json.loads(data)
+    headers = {'Authorization': 'Bearer '+google.token['access_token'],
+                'Content-Type': 'multipart/mixed;boundary="foo_bar"'}
+    whole_request = '--foo_bar\n'
+
+    for message_id in data['messages']:
+        req_string = '''Content-Type: application/http
+
+POST   /gmail/v1/users/me/messages/'''+message_id+'''/trash
+
+--foo_bar
+'''
+        whole_request = whole_request + req_string
+
+    batch_req = google.post('https://www.googleapis.com/batch',headers=headers,data = whole_request)
+    print(batch_req.text)
+    deleted = batch_req.text.count('200 OK')
+
+    return deleted
+
+
 
 def token_refresh(user, db):
     account = Connections.query.filter_by(user_id = user.id, provider = 'google').first()
