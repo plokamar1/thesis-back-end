@@ -53,7 +53,6 @@ def index():
         userExists = authentication.isUserRegistered(db ,args.get('username'), args.get('email'))
         #Return Error
         if userExists:
-            print(json.dumps({'error': 'User already exists'}), sys.stderr)
             return json.dumps({'error': 'User already exists'}), 403
         else:
             #Make new user
@@ -114,7 +113,6 @@ def socialAuth():
             code = request.get_json().get('code')
             google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
             token = google.token
-            print(google, sys.stderr)
             resp = authGGL.getUserInfo(google,db,None)
             if 'error' in resp:
                 return json.dumps(resp), 400
@@ -146,7 +144,6 @@ def get_user():
     user = authentication.signInUser(token, '')
     if user:
         user_data = user.user_info_construction()
-        print(user_data, sys.stderr)
         return json.dumps(user.user_info_construction())
     else:
         abort(400)
@@ -187,6 +184,54 @@ def get_mails():
     if user:
         mails_list = authGGL.get_mail(user, db)
         return json.dumps(mails_list), 200
+    else:
+        abort(400)
+
+@app.route('/api/modifymails', methods=['GET'])
+def modify_mails():
+    token = request.args.get('token')
+    user = authentication.signInUser(token, '')
+    if user:
+        label = request.args.get('label')
+        action = request.args.get('action')
+        mess_id = request.args.get('id')
+        response = authGGL.modify_mail(label, action, mess_id, user, db)
+        if response:
+            return json.dumps({'message':'Label modified'}), 200
+        else:
+            return json.dumps({'error':'There was a problem'}), 400
+    else:
+        abort(400)
+@app.route('/api/trash', methods=['POST'])
+def trash():
+    token = request.args.get('token')
+    user = authentication.signInUser(token, '')
+    if user:
+        req = request.data
+        print(req, sys.stderr)
+        deleted = authGGL.toTrash(req, user, db)
+        if deleted:
+            return json.dumps({'success': str(deleted)+' mails succesfully moved to trash!'}), 200
+        else:
+            return json.dumps({'error':'There was a problem'}), 400
+
+    else:
+        abort(400)
+
+@app.route('/api/sendmail', methods=['POST'])
+def send_mail():
+    token = request.args.get('token')
+    user = authentication.signInUser(token, '')
+    if user:
+        req = request.data
+        print(req, sys.stderr)
+        if authGGL.send_mail(req, db, user):
+            return json.dumps({'success': 'Mail succesfully sent'}), 200
+        else:
+            return json.dumps({'error':'There was a problem'}), 400
+
+    else:
+        abort(400)
 
 
 if __name__ == "__main__":
