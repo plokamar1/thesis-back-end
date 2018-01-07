@@ -51,7 +51,7 @@ def signInUser(_username, _password):
 		
 
 	#Getting the user object IF there is any with that username
-	user = User.query.filter_by(username=_username).first()
+	user = User.query.filter_by(username=_username, primary_provider="FORM").first()
 	if user:
 		response = user.verify_pass(_password)
 		if response:
