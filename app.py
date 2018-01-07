@@ -23,10 +23,12 @@ google = OAuth2Session(gglCreds['client_id'], scope = scope, redirect_uri = 'htt
 fbCreds = json.load(open('FBclient_secret.json'))
 facebook = OAuth2Session(fbCreds['client_id'] , redirect_uri= 'http://localhost:4200/load?prov=fb')
 facebook = facebook_compliance_fix(facebook)
-
+##INITIALIZING TWITTER
 ttrCreds = json.load(open('TTRclient_secret.json'))
-twitter = OAuth1Session(ttrCreds['client_id'],client_secret=ttrCreds['client_secret'] ,callback_uri = 'http://localhost:4200/load?prov=ttr')
-twitter.fetch_request_token(ttrCreds['token_uri'] )
+def twitterSess():
+    twitter = OAuth1Session(ttrCreds['client_id'],client_secret=ttrCreds['client_secret'] ,callback_uri = 'http://localhost:4200/load?prov=ttr')
+    twitter.fetch_request_token(ttrCreds['token_uri'] )
+    return twitter
 
 
 
@@ -36,6 +38,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+mysqldb://root:Zangetsou1992@loca
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 cors = CORS(app, resources={r"/.*": {"origins": "*"}})
+
 
 
 
@@ -65,8 +68,8 @@ def index():
 
     ###LOGIN
     if request.method == "GET":
-        username = request.args.get('username')
-        password = request.args.get('password')
+        username = request.args.get('username', '')
+        password = request.args.get('password', '')
         exists = authentication.isUserRegistered(db, username, None)
         # if not exists:
         #     #if there isnt any user with that username then return an error
@@ -89,6 +92,7 @@ def socialAuth():
         redirect_GGL, state = google.authorization_url(gglCreds['auth_uri'], access_type="offline", prompt="select_account")
 
         #Getting Twitter redirect uri
+        twitter = twitterSess()
         redirect_TTR = twitter.authorization_url(ttrCreds['auth_uri'])
 
         return json.dumps({'fb_uri': redirect_FB, 'ggl_uri': redirect_GGL, 'ttr_uri': redirect_TTR} ), 200
@@ -108,6 +112,12 @@ def socialAuth():
                     return json.dumps(resp), 400
                 else:
                     return json.dumps(resp), 200
+            if user and prov=='ttr':
+                code = request.get_json().get('code')
+                twitter = twitterSess()
+                twitter.parse_authorization_response(code)
+                tokens = twitter.fetch_access_token(ttrCreds['access_token_uri'])
+                resp = authTTR.getUserInfo(twitter, db, tokens, user)
 
         if prov == 'ggl':
             code = request.get_json().get('code')
@@ -130,9 +140,10 @@ def socialAuth():
 
         if prov == 'ttr':
             code = request.get_json().get('code')
+            twitter = twitterSess()
             twitter.parse_authorization_response(code)
             tokens = twitter.fetch_access_token(ttrCreds['access_token_uri'])
-            resp = authTTR.getUserInfo(twitter, db, tokens)
+            resp = authTTR.getUserInfo(twitter, db, tokens, None)
             if 'error' in resp:
                 return json.dumps(resp), 400
             else:
@@ -140,7 +151,7 @@ def socialAuth():
 
 @app.route('/api/get-user', methods=['GET'])
 def get_user():
-    token = request.args.get('token')
+    token = request.args.get('token', '')
     user = authentication.signInUser(token, '')
     if user:
         user_data = user.user_info_construction()
@@ -150,13 +161,13 @@ def get_user():
 
 @app.route('/api/rss', methods=['GET'])
 def modify_rss():
-    token = request.args.get('token')
-    rss_url = request.args.get('rss')
+    token = request.args.get('token', '')
+    rss_url = request.args.get('rss', '')
     user = authentication.signInUser(token, '')
     if not user:
         abort(400)
     
-    action = request.args.get('action')
+    action = request.args.get('action', '')
     if action == 'add':
         exists = Rss.query.filter_by(user_id = user.id, url=rss_url).scalar() is not None
         if exists:
@@ -175,26 +186,30 @@ def modify_rss():
             db.session.commit()
         rss_list = user.rss_construction()
         return json.dumps({"rss_feeds": rss_list}), 200
+
     abort(400)
 
 @app.route('/api/getmails', methods=['GET'])
 def get_mails():
-    token = request.args.get('token')
+    token = request.args.get('token', '')
     user = authentication.signInUser(token, '')
     if user:
-        mails_list = authGGL.get_mail(user, db)
+        nextPageToken = request.args.get('nextPageToken', '')
+        mails_list = authGGL.get_mail(user, db, nextPageToken)
+        if 'error' in mails_list:
+            return json.dumps(mails_list) , 400
         return json.dumps(mails_list), 200
     else:
         abort(400)
 
 @app.route('/api/modifymails', methods=['GET'])
 def modify_mails():
-    token = request.args.get('token')
+    token = request.args.get('token', '')
     user = authentication.signInUser(token, '')
     if user:
-        label = request.args.get('label')
-        action = request.args.get('action')
-        mess_id = request.args.get('id')
+        label = request.args.get('label', '')
+        action = request.args.get('action', '')
+        mess_id = request.args.get('id', '')
         response = authGGL.modify_mail(label, action, mess_id, user, db)
         if response:
             return json.dumps({'message':'Label modified'}), 200
@@ -204,11 +219,10 @@ def modify_mails():
         abort(400)
 @app.route('/api/trash', methods=['POST'])
 def trash():
-    token = request.args.get('token')
+    token = request.args.get('token', '')
     user = authentication.signInUser(token, '')
     if user:
         req = request.data
-        print(req, sys.stderr)
         deleted = authGGL.toTrash(req, user, db)
         if deleted:
             return json.dumps({'success': str(deleted)+' mails succesfully moved to trash!'}), 200
@@ -220,11 +234,10 @@ def trash():
 
 @app.route('/api/sendmail', methods=['POST'])
 def send_mail():
-    token = request.args.get('token')
+    token = request.args.get('token', '')
     user = authentication.signInUser(token, '')
     if user:
         req = request.data
-        print(req, sys.stderr)
         if authGGL.send_mail(req, db, user):
             return json.dumps({'success': 'Mail succesfully sent'}), 200
         else:
@@ -233,6 +246,17 @@ def send_mail():
     else:
         abort(400)
 
+@app.route('/api/gettwits', methods=['GET'])
+def get_twits():
+    token = request.args.get('token', '')
+    user = authentication.signInUser(token, '')
+    if user:
+        max_id = request.args.get('max_id', '')
+        response = authTTR.get_Timeline(user, max_id)
+        if 'error' in response:
+            return json.dumps(response), 400
+        return json.dumps(response), 200
+    abort(400)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True,threaded=True)
