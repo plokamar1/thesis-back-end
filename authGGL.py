@@ -24,9 +24,14 @@ def getUserInfo(gglSession, db, old_user):
     if old_user:
         exists = Connections.query.filter_by(email=email, provider = 'google').first()
         if not exists:
-            newConnection(email, basic_info, db, gglSession.token, old_user)
-            response = old_user.token_construction()
-            return response
+            newConn = newConnection(email, basic_info, db, gglSession.token, old_user)
+            if newConn:
+                response = old_user.token_construction()
+                return response
+            else:
+                response = {'error': 'There was a problem registering that account'}
+                return response
+
         else:
             response = {'error': 'Already connected account!'}
             return response
@@ -106,15 +111,12 @@ def modify_mail(label, action, mess_id ,user, db):
         request_body = {'removeLabelIds': [], 'addLabelIds': [label]}
     if action == 'remove':
         request_body = {'removeLabelIds': [label], 'addLabelIds': []}
-    print(json.dumps(request_body))
     request_url = 'https://www.googleapis.com/gmail/v1/users/'+connection.provider_id+'/messages/'+mess_id+'/modify'
-    print(request_url)
 
     response = google.post(request_url,headers=headers,data=json.dumps(request_body)).json()
 
     
     #response = google.post('https://www.googleapis.com/gmail/v1/users/me/messages/'+mess_id+'/modify', data=json.dumps({"removeLabelIds": [label]})).json()
-    print(response)
     if 'error' in response:
         return False
     else:
@@ -122,32 +124,36 @@ def modify_mail(label, action, mess_id ,user, db):
 
 
 
-def get_mail(user, db):
+def get_mail(user, db, nextPageToken):
     google = token_refresh(user , db)
     payload = {
             'labelIds': ['INBOX'],
-            'maxResults':15,
-            'q': 'category:primary'    
+            'maxResults':50,
+            'q': 'category:primary',
+            'pageToken': nextPageToken    
             }
-
+    print(payload)
     mail_list = google.get(
         'https://www.googleapis.com/gmail/v1/users/me/messages', params = payload).json()
 
-    fetched_messages = messages_construction(mail_list, google)
-
-
     if 'error' in mail_list:
-        mail_list = {'error': 'OAuthException'}
+        return mail_list
+
+    fetched_messages = messages_construction(mail_list, google)
+    newPageToken = ''
+    if 'nextPageToken' in mail_list:
+
+        newPageToken = mail_list['nextPageToken']
 
     return {'messages': fetched_messages,
-    'nextPageToken': mail_list['nextPageToken']}
+    'nextPageToken': newPageToken}
 
 def messages_construction(mail_list, google):
 
     fetched_messages = []
     #batch get mails for user
     headers = {'Authorization': 'Bearer '+google.token['access_token'],
-                'Content-Type': 'multipart/mixed;boundary="foo_bar"'}
+                'Content-Type': 'multipart/mixed;boundary="foo_bar";charset=UTF-8'}
     whole_request = '--foo_bar\n'
 
     for message in mail_list['messages']:
@@ -211,6 +217,8 @@ GET   /gmail/v1/users/me/messages/'''+message['id']+'''
 
 
         fetched_messages.append(mess_json)
+    fetched_messages =sorted(fetched_messages, key=lambda k: k['Timestamp'], reverse= True) 
+
 
 
     return fetched_messages
@@ -223,11 +231,8 @@ def send_mail(data, db, user):
     # message['From'] = data['from']
     message['Subject'] = data['subject']
     headers = {'Content-Type': 'application/json'}
-    print(message.as_string())
     request_body =  {'raw': base64.urlsafe_b64encode(message.as_string())}
-    print(request_body)
     response = google.post('https://www.googleapis.com/gmail/v1/users/me/messages/send',headers=headers, data = json.dumps(request_body)).json()
-    print(response)
     if 'error' in response:
         return False
     else:
@@ -262,7 +267,6 @@ POST   /gmail/v1/users/me/messages/'''+message_id+'''/trash
         whole_request = whole_request + req_string
 
     batch_req = google.post('https://www.googleapis.com/batch',headers=headers,data = whole_request)
-    print(batch_req.text)
     deleted = batch_req.text.count('200 OK')
 
     return deleted
