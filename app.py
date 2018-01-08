@@ -89,7 +89,7 @@ def socialAuth():
         #Getting FB redirect uri
         redirect_FB, state = facebook.authorization_url(fbCreds['auth_uri'] )
         #Getting Google redirect uri
-        redirect_GGL, state = google.authorization_url(gglCreds['auth_uri'], access_type="offline", prompt="select_account")
+        redirect_GGL, state = google.authorization_url(gglCreds['auth_uri'], access_type="offline", prompt="consent")
 
         #Getting Twitter redirect uri
         twitter = twitterSess()
@@ -121,7 +121,7 @@ def socialAuth():
 
         if prov == 'ggl':
             code = request.get_json().get('code')
-            google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
+            new_token = google.fetch_token(gglCreds['token_uri'] , client_secret=gglCreds['client_secret'],code=code)
             token = google.token
             resp = authGGL.getUserInfo(google,db,None)
             if 'error' in resp:
