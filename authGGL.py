@@ -19,10 +19,17 @@ def getUserInfo(gglSession, db, old_user):
     basic_info = gglSession.get(
         'https://www.googleapis.com/userinfo/v2/me').json()
 
+    if 'error' in basic_info:
+        if basic_info['error']['type'] == 'OAuthException':
+            response = {'error': 'OAuthException'}
+    if 'error' in email:
+        if email['error']['type'] == 'OAuthException':
+            response = {'error': 'OAuthException'}
+
     #print(basic_info.json()['family_name'], sys.stderr)
     user = User.query.filter_by(email=email).first()
+    exists = Connections.query.filter_by(email=email, provider = 'google').first()
     if old_user:
-        exists = Connections.query.filter_by(email=email, provider = 'google').first()
         if not exists:
             newConn = newConnection(email, basic_info, db, gglSession.token, old_user)
             if newConn:
@@ -36,19 +43,19 @@ def getUserInfo(gglSession, db, old_user):
             response = {'error': 'Already connected account!'}
             return response
         
-    if 'error' in basic_info:
-        if basic_info['error']['type'] == 'OAuthException':
-            response = {'error': 'OAuthException'}
     else:
-        if user is None:
-            response = newGGLUser(email, basic_info, db, gglSession.token)
-        elif user.primary_provider != 'google':
-            response = {
+        if user:
+            if user.primary_provider != 'google':
+                response = {
                 'error': 'User has already authenticated with a different medium'}
-
+            else:
+                newUser = updatedGGLUser(email, basic_info, db, gglSession.token , user)
+                response = newUser.token_construction()
         else:
-            newUser = updatedGGLUser(email, basic_info, db, gglSession.token , user)
-            response = newUser.token_construction()
+            if exists:
+                response = {'error': 'User has already authenticated with a different medium'}
+            else:
+                response = newGGLUser(email, basic_info, db, gglSession.token)
 
     return response
 
@@ -282,14 +289,22 @@ def token_refresh(user, db):
     'client_id': gglCreds['client_id'],
     'client_secret': gglCreds['client_secret']
     }
-
     google = OAuth2Session(gglCreds['client_id'], token = json.loads(token), auto_refresh_kwargs=extra,
                            auto_refresh_url=gglCreds['token_uri'])
 
-    basic_info = google.get('https://www.googleapis.com/userinfo/v2/me').json()
-    
-    new_token = google.token
+    for i in range(0,5):
+        try:
+            basic_info = google.get('https://www.googleapis.com/userinfo/v2/me').json()
+        except TokenExpiredError as e:
+            new_token = google.refresh_token(gglCreds['token_uri'], **extra)
+            account.access_token = json.dumps(new_token)
+            db.session.commit()
+        finally:
+            return google
 
-    account.access_token = json.dumps(new_token)
-    db.session.commit()
-    return google
+
+    # print(new_token)
+    # if new_token['refresh_token'] is not None:
+    #     account.access_token = json.dumps(new_token)
+    #     db.session.commit()
+    # return google

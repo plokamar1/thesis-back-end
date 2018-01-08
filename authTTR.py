@@ -24,10 +24,15 @@ def getUserInfo(twitter, db, tokens, old_user):
 
     basic_info = twitter.get(
         'https://api.twitter.com/1.1/account/verify_credentials.json').json()
+    if 'error' in basic_info:
+        if basic_info['error']['type'] == 'OAuthException':
+            response = {'error': 'OAuthException'}
+    
 
+    exists = Connections.query.filter_by(email = basic_info['id_str'] + '@twit.com', provider = 'twitter').first()
+    user = User.query.filter_by(username=basic_info['id_str']).first()
 
     if old_user:
-        exists = Connections.query.filter_by(email = basic_info['id_str'] + '@twit.com', provider = 'twitter').first()
         if not exists:
             newConn = newConnection(basic_info, db, tokens, old_user)
             if newConn:
@@ -41,24 +46,20 @@ def getUserInfo(twitter, db, tokens, old_user):
             return response
 
 
-    if 'error' in basic_info:
-        if basic_info['error']['type'] == 'OAuthException':
-            response = {'error': 'OAuthException'}
     else:
-
-        user = User.query.filter_by(username=basic_info['id_str']).first()
-        #Because i dont have access to the email of the user i search for the username WHERE i will store the twitter user id
-        if user is None:
-            response = newTwitterUser(basic_info, db,
-                                      tokens)
-        #if there is already that email and the primary provider isn't facebook then he should connect with the medium he has authenticated the first time
-        elif user.primary_provider != 'twitter':
-            response = {
+        if user:
+            if user.primary_provider != 'twitter':
+                response = {
                 'error': 'User has already authenticated with a different medium'}
-        #if there is that user correct just send back the user info he needs
+            else:
+                newUser = updatedTwitterUser(basic_info, db, tokens, user)
+                response = newUser.token_construction()
         else:
-            newUser = updatedTwitterUser(basic_info, db, tokens, user)
-            response = newUser.token_construction()
+            if exists:
+                response = {'error': 'User has already authenticated with a different medium'}
+            else:
+                response = newTwitterUser(basic_info, db,
+                                      tokens)
     return response
 
 def newConnection(basic_info, db, tokens, user):
